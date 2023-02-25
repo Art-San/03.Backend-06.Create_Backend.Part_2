@@ -1,6 +1,8 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const User = require('../models/User')
+const { generateUserData } = require('../utils/helpers')
+const tokenService = require('../services/token.service')
 const router = express.Router({ mergeParams: true })
 
 // // /api/auth/signUp <-
@@ -26,11 +28,17 @@ router.post('/signUp', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(password, 12) // шифруем пароль полученый из req.body 12-это сложность шифрования
 
-        const newUser = User.create({
-            password: hashedPassword,
-            ...req.body
-
+        const newUser = await User.create({
+            ...generateUserData(), // учитыва что данная функция возвращает объект то тоже ее развернем ...generateUserData
+            ...req.body,                //  в таком порядке если что то ...req.body перепишет enerateUserData, и затем уже пароль
+            password: hashedPassword
         })
+
+       const tokens = tokenService.generate({ _id: newUser._id })
+
+       res.status(201).send({ ...tokens, userId: newUser._id })
+
+
     } catch (e) {
         res.status(500).json({
             message: 'На сервере произошла ошибкаю Попробуйте позже'
