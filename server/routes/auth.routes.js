@@ -4,6 +4,7 @@ const {check, validationResult} = require('express-validator')
 const User = require('../models/User')
 const { generateUserData } = require('../utils/helpers')
 const tokenService = require('../services/token.service')
+const Token = require('../models/Token')
 const router = express.Router({ mergeParams: true })
 
 // // /api/auth/signUp <-
@@ -11,7 +12,7 @@ const router = express.Router({ mergeParams: true })
 // 2. check if users already exist
 // 3. hash password
 // 4. create users
-// 5 generate ptokens
+// 5 generate tokens
 // 6. validaciya
 
 router.post('/signUp', [   // hendler - async (req, res) => {} оборачивае  [в квадратные] и запихиваем chek
@@ -120,8 +121,34 @@ router.post('/signInWithPassword', [
         }
 }])
 
+function isTokenInvalid(data, dbToken) {
+    return !data || !dbToken || data._id !== dbToken?.user?.toString()
+}
+
 router.post('/token', async (req, res) => {
-    
+    try {
+        const {refresh_token: refreshToken} = req.body
+        const data = tokenService.validateRefresh(refreshToken)
+        const dbToken = await tokenService.findToken(refreshToken)
+
+        if(isTokenInvalid(data, dbToken)) {
+            return res.status(401).json({message: 'Unauthorized'})
+        }
+
+        const tokens = await tokenService.generate({
+             _id: data._id
+        })
+        await tokenService.save(data._id, tokens.refreshToken)
+
+        // console.log('data', data)       // если просто остави консоль.лог и не завершим запрос 
+
+        // res.status(200).send({data})    // с помощью res.status(200).send({data}) то сервер будет виснуть
+        res.status(200).send({ ...tokens, userId: data._id}) 
+    } catch (e) {
+        res.status(500).json({
+            message: 'На сервере произошла ошибкаю Попробуйте позже'
+        })
+    }
 })
 
 module.exports = router
